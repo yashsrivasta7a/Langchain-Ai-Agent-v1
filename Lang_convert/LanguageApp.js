@@ -6,8 +6,8 @@ import {
 } from "@langchain/core/runnables";
 import { AzureChatOpenAI } from "@langchain/openai";
 import { configDotenv } from "dotenv";
-import { AzureOpenAI } from "openai";
 configDotenv();
+
 const llm = new AzureChatOpenAI({
   azure: true,
   azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
@@ -16,60 +16,81 @@ const llm = new AzureChatOpenAI({
   azureOpenAIApiVersion: "2024-04-01-preview",
 });
 
-const punctuation = PromptTemplate.fromTemplate(
-  `Given a sentence , add punctuation where needed.
-sentence:{sentence}
-sentence with punctuation :`
-);
+// Prompt templates
+const punctuation = PromptTemplate.fromTemplate(`
+Given a sentence, add punctuation where needed.
+sentence: {sentence}
+sentence with punctuation:
+`);
 
-const grammar = PromptTemplate.fromTemplate(
-  `Given a sentence correct the grammar.
-    sentence: {punctuated}
-    sentence with correct grammar: 
-    `
-);
-const translation =
-  PromptTemplate.fromTemplate(`Given a sentence, translate that sentence into {language}
-    sentence: {grammatically_correct_sentence}
-    translated sentence:`);
+const grammar = PromptTemplate.fromTemplate(`
+Given a sentence, correct the grammar.
+sentence: {punctuated}
+sentence with correct grammar:
+`);
 
+const translation = PromptTemplate.fromTemplate(`
+Given a sentence, translate that sentence into {language}.
+sentence: {grammatically_correct_sentence}
+translated sentence:
+`);
+
+const toEnglish = PromptTemplate.fromTemplate(`
+Given a sentence, translate that sentence into English.
+sentence: {translated}
+translated sentence:
+`);
+
+// Sub-chains
 const punctuationChain = RunnableSequence.from([
   punctuation,
   llm,
   new StringOutputParser(),
 ]);
+
 const grammarChain = RunnableSequence.from([
-  grammar, //expects{punctuated:}
+  grammar,
   llm,
   new StringOutputParser(),
 ]);
-const langchain = RunnableSequence.from([
+
+const translationChain = RunnableSequence.from([
   translation,
   llm,
   new StringOutputParser(),
 ]);
 
-const Chain = RunnableSequence.from([
-  { 
-    punctuated: punctuationChain,
-    original_inputs : new RunnablePassthrough()
- },
-  // {punctuated : p => p}, not a elegant way
-  // prevResult =>console.log(prevResult),   FOR TESTING OUTPUT
-  { 
-    grammatically_correct_sentence: grammarChain,
-    language: ({ original_input }) => original_input.language
-    
- },
-  
-  langchain,
+const englishConversionChain = RunnableSequence.from([
+  toEnglish,
+  llm,
+  new StringOutputParser(),
 ]);
 
-const response = await Chain.invoke({
-  sentence: "i dont liked mondays",
-  language: "french",
+// Final combined chain
+const combinedChain = RunnableSequence.from([
+  {
+    punctuated: punctuationChain,
+    original_inputs: new RunnablePassthrough(),
+  },
+  {
+    grammatically_correct_sentence: grammarChain,
+    language: ({ original_inputs }) => original_inputs.language,
+  },
+  {
+    translated: translationChain,
+    text: ({ grammatically_correct_sentence }) => grammatically_correct_sentence,
+    language: ({ language }) => language,
+  },
+  {
+    english: englishConversionChain,
+    sentence: ({ translated }) => translated,
+  },
+]);
+
+// Run
+const response = await combinedChain.invoke({
+  sentence: "ronit bali is a boi who is naughty",
+  language: "japanese",
 });
-
-
 
 console.log(response);

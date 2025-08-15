@@ -18,10 +18,12 @@ const standaloneQuestionTemplate = ' Given a question convert it to a standalone
 
 const standaloneQuestionPrompt = PromptTemplate.fromTemplate(standaloneQuestionTemplate)
 
-const standaloneQuestionChain = standaloneQuestionPrompt.pipe(llm)
+const standaloneQuestionChain = standaloneQuestionPrompt.pipe(llm) // prompt = output -> llm ka input
 
 const response = await  standaloneQuestionChain.invoke({
-   question: 'What are the technical requi rements for runmng Langchain? I only have a very laptop which is not that powerful  '
+   question: 'who is the president of india but i have a lesspowerful laptop suggest me some gaming laptop  '
 })
 
-console.log(response);
+console.log(response); 
+
+
